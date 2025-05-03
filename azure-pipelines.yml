@@ -1,0 +1,83 @@
+variables:
+  buildConfiguration: Release
+  upperSourceBranchName: $[upper(variables['build.SourceBranchName'])]
+
+name: Build.$(upperSourceBranchName).$(Date:yyyyMMdd)$(Rev:.r)
+trigger:
+  branches:
+    include:
+      - dev
+      - release
+      - master
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: Build
+  jobs:
+    - job: Build_MicrosLabel
+      displayName: Build MicrosLabel
+      steps:
+        - task: UseDotNet@2
+          inputs:
+            packageType: 'sdk'
+            useGlobalJson: true
+
+        - task: DotNetCoreCLI@2
+          displayName: Build solution
+          inputs:
+              command: build
+              projects: "**/*.csproj"
+              arguments: "--configuration $(buildConfiguration)"
+
+        - task: DotNetCoreCLI@2
+          displayName: "Run dotnet test"
+          inputs:
+              command: 'test'
+              projects: "test/**/*.csproj"
+              publishTestResults: false
+              arguments: '--settings coverlet.runsettings --logger trx'
+
+        - task: PublishTestResults@2
+          displayName: "Publish test results"
+          inputs:
+              testResultsFormat: 'VSTest'
+              testResultsFiles: '$(System.DefaultWorkingDirectory)/test/**/TestResults/**/*.trx'
+        # - task: reportgenerator@4
+        #   displayName: 'Merge code coverage reports'
+        #   inputs:
+        #       reports: '$(System.DefaultWorkingDirectory)/test/**/TestResults/**/coverage.cobertura.xml'
+        #       targetdir: '$(Pipeline.Workspace)/coverlet'
+        #       reporttypes: 'Cobertura'
+        #       verbosity: 'Verbose'
+
+        - task: PublishCodeCoverageResults@1
+          displayName: "Publish code coverage results"
+          inputs:
+              codeCoverageTool: 'Cobertura'
+              summaryFileLocation: '$(Pipeline.Workspace)/coverlet/Cobertura.xml'
+
+        # - task: BuildQualityChecks@8
+        #   displayName: "Code coverage quality check"
+        #   inputs:
+        #       checkCoverage: true
+        #       coverageFailOption: 'fixed'
+        #       coverageType: 'lines'
+        #       coverageThreshold: '80'
+
+        #- task: DotNetCoreCLI@2
+        #  displayName: dotnet publish
+        #  inputs:
+        #    command: 'publish'
+        #    publishWebProjects: false
+        #    zipAfterPublish: true
+        #    buildProperties: 
+        #    projects: '**/MicrosLabel.Api.csproj'
+        #    arguments: '--configuration  $(BuildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+            
+        #- task: PublishBuildArtifacts@1
+        #  inputs:
+        #    PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        #    ArtifactName: 'MicrosLabel'
+        #    publishLocation: 'Container'
